@@ -16,18 +16,34 @@ struct SensorData
 };
 
 
-static int chars_rxed = 0;
+static int readIndex = 0;
+static const int READ_DATA_MAX = 100;
+static char readData[READ_DATA_MAX];
+
+static bool dataRequest = false;
 
 void on_uart_rx() {
+  const char getMsg[3] = {'g', 'e', 't'};
+
     while (uart_is_readable(uart1)) {
         uint8_t ch = uart_getc(uart1);
-        // Can we send it back?
-        if (uart_is_writable(uart1)) {
-            // Change it slightly first!
-            ch++;
-            uart_putc(uart1, ch);
+        if(readIndex > READ_DATA_MAX)
+          readIndex = 0;
+
+        readData[readIndex++] = ch;
+        if(ch == '\r')
+        {
+          readData[readIndex] = '\0';
+          if(readData[0] == getMsg[0] && readData[1] == getMsg[1] && readData[2] == getMsg[2])
+          {
+            dataRequest = true;
+          }
+          else
+          {
+            uart_puts(uart1, "unknown command!\n\r  get -> returns all stored readings\n\r\n\r");
+          }
+          readIndex = 0;
         }
-        chars_rxed++;
     }
 }
 
@@ -65,13 +81,22 @@ int main() {
     sensorData[sensorDataIndex].humidity = tempHumSensor.getHumidity();
     sensorDataIndex = (sensorDataIndex + 1) % MAX_RECORDS;
 
-    const char *msg = "Temp: %.1f Celsius\n\rHmty: %.1f Percent\n\r\n\r";
-    int len = snprintf(NULL, 0, msg, tempHumSensor.getTemperature(), tempHumSensor.getHumidity());
-    char *result = (char *)malloc(len + 1);
-    snprintf(result, len + 1, msg, tempHumSensor.getTemperature(), tempHumSensor.getHumidity());
-    bluetoothUart.print(result);
-    free(result);
+    if(dataRequest)
+    {
+      for(int i = 0; i < sensorDataIndex; i++)
+      {
+        const char *msg = "Temp: %.1f Celsius    Hmty: %.1f Percent\n\r";
+        int len = snprintf(NULL, 0, msg, sensorData[i].temperature, sensorData[i].humidity);
+        char *result = (char *)malloc(len + 1);
+        snprintf(result, len + 1, msg, sensorData[i].temperature, sensorData[i].humidity);
+        bluetoothUart.print(result);
+        free(result);
+      }
+      sensorDataIndex = 0;
+      dataRequest = false;
+    }
 
+    sleep_ms(10);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
   }
 }

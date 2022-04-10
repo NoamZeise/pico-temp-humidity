@@ -4,14 +4,11 @@ using the [raspberry pi pico](https://www.raspberrypi.com/products/raspberry-pi-
 
 Current State:
 * reads temp and humidity readings with gpio from DHT11
-* writes current temp and humidity with uart over bluetooth
-* echos back recieved uart, with shifted chars
+* writes current temp and humidity with uart over bluetooth if sent "get"
 
 Goal:
-* store sensor readings on the pico
-* upload to computer when requested over uart
+* upload to computer through a binary and save to file instead of using putty/minicom
 
 ## dependancies
 
 I'm using the [pico SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html) which gives abstraction of the hardware and cmake build helper functions
- 
