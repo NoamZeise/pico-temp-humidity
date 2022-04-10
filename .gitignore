@@ -1,2 +1,4 @@
 pico-code/build/*
 pico-code/.cache/*
+pc-code/target/*
+pc-code/Cargo.lock

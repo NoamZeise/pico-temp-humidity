@@ -11,4 +11,4 @@ Goal:
 
 ## dependancies
 
-I'm using the [pico SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html) which gives abstraction of the hardware and cmake build helper functions
+I'm using the [pico SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html) which gives abstraction of the hardware and cmake build helper functions. The path needs to be set in CMakeLists.txt.
