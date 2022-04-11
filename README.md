@@ -5,8 +5,8 @@ using the [raspberry pi pico](https://www.raspberrypi.com/products/raspberry-pi-
 Current State:
 * reads temp/humidity from DHT11 with gpio every 30 seconds
 * saves readings + time in a large buffer
-* when sent a request from the command line tool over bluetooth serial, sends the data to the PC and clears the buffer
-* PC tool saves the recieved data as a csv file on the user's machine as TEMPERATURE,HUMIDITY,TIME
+* when sent a request from the command line tool over bluetooth serial, sends the data to the PC, clears the buffer and resets the time
+* PC tool saves the recieved data as a csv file on the user's machine as Humidity,Temperature,Time,
 
 ## dependancies
 
