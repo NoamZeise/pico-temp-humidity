@@ -13,16 +13,12 @@ Dht11Sensor::Dht11Sensor(uint gpNum)
     bits[i] = 0;
 }
 
-float Dht11Sensor::getHumidity()
-{
-  return this->humidity;
+void Dht11Sensor::get4u8Readings(unsigned char* buff) {
+  for(int i = 0; i < 4; i++)
+  {
+    buff[i] = readings[i];
+  }
 }
-
-float Dht11Sensor::getTemperature()
-{
-  return this->temperature;
-}
-
 
 void Dht11Sensor::update()
 {
@@ -56,8 +52,10 @@ void Dht11Sensor::update()
 
   if(check == data[4])
   {
-    this->humidity = (float)data[0] + ((float)data[1] / 10);
-    this->temperature = (float)data[2] + ((float)data[3] / 10);
+    for(int i = 0; i < 4; i++)
+    {
+      readings[i] = data[i];
+    }
   }
   else
     uart_puts(uart0, "check failed\n\r");
@@ -100,7 +98,7 @@ bool Dht11Sensor::wake()
   return wakeResponse();
 }
 
-uint Dht11Sensor::getBit(int index)
+unsigned char Dht11Sensor::getBit(int index)
 {
   int usElapsed = waitChangeUs(false, 100);
   usElapsed = waitChangeUs(true, 100);
@@ -108,9 +106,9 @@ uint Dht11Sensor::getBit(int index)
   return usElapsed > 40;
 }
 
-uint Dht11Sensor::getByte(int index)
+unsigned char Dht11Sensor::getByte(int index)
 {
-  uint num = 0;
+  unsigned char num = 0;
   for(int i = 0; i < 8; i++)
   {
     bits[index * 8 + i] = getBit(index);

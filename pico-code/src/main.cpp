@@ -1,6 +1,8 @@
 #include "pico/stdlib.h"
+#include "pico/sync.h"
 #include "hardware/uart.h"
 #include "hardware/irq.h"
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,17 +13,21 @@
 
 struct SensorData
 {
-    float temperature = -1;
-    float humidity = -1;
-    float time = -1;
+  unsigned char hmty[2];
+  unsigned char temp[2];
+  unsigned char time[3];
 };
 
+const int MAX_RECORDS = 10000;
+static SensorData sensorData[MAX_RECORDS];
+static int sensorDataIndex = 0;
 
 static int readIndex = 0;
+static float currentTimeOffset = 0;
 static const int READ_DATA_MAX = 100;
 static char readData[READ_DATA_MAX];
 
-static bool dataRequest = false;
+static mutex_t readIndexMutex;
 
 void on_uart_rx() {
   const char getMsg[3] = {'g', 'e', 't'};
@@ -37,8 +43,33 @@ void on_uart_rx() {
           readData[readIndex] = '\0';
           if(readData[0] == getMsg[0] && readData[1] == getMsg[1] && readData[2] == getMsg[2])
           {
-            uart_putc_raw(uart1, 'a'); //sending data
-            dataRequest = true;
+
+            mutex_enter_blocking(&readIndexMutex);
+
+            if(sensorDataIndex == 0)
+            {
+              uart_putc_raw(uart1, 'e'); //empty
+            }
+            else
+            {
+              uart_putc_raw(uart1, 'a'); //sending data
+
+              for(int i = 0; i < sensorDataIndex; i++)
+              {
+                uart_putc_raw(uart1, sensorData[i].hmty[0]);
+                uart_putc_raw(uart1, sensorData[i].hmty[1]);
+                uart_putc_raw(uart1, sensorData[i].temp[0]);
+                uart_putc_raw(uart1, sensorData[i].temp[1]);
+                uart_putc_raw(uart1, sensorData[i].time[0]);
+                uart_putc_raw(uart1, sensorData[i].time[1]);
+                uart_putc_raw(uart1, sensorData[i].time[2]);
+              }
+
+              sensorDataIndex = 0;
+              currentTimeOffset = to_ms_since_boot(get_absolute_time()) / 1000;
+            }
+
+            mutex_exit(&readIndexMutex);
           }
           else
           {
@@ -50,6 +81,8 @@ void on_uart_rx() {
 }
 
 int main() {
+
+  mutex_init(&readIndexMutex);
 
   UartHandle passthroughUart(0, 1, uart0, 115200);
   UartHandle bluetoothUart(4, 5, uart1, 9600);
@@ -67,11 +100,7 @@ int main() {
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
-  const int MAX_RECORDS = 10000;
-  SensorData sensorData[MAX_RECORDS];
-  int sensorDataIndex = 0;
-
-  float currentTimeOffset = 0;
+  currentTimeOffset = 0;
 
   while (true) {
     sleep_ms(30000); //1 day = 2880 readings
@@ -80,26 +109,23 @@ int main() {
 
     tempHumSensor.update();
 
-    sensorData[sensorDataIndex].temperature = tempHumSensor.getTemperature();
-    sensorData[sensorDataIndex].humidity = tempHumSensor.getHumidity();
-    sensorData[sensorDataIndex].time = ((float)to_ms_since_boot(get_absolute_time()) / 1000) - currentTimeOffset;
+    mutex_enter_blocking(&readIndexMutex);
+
+    unsigned char data[4] = {0, 0, 0, 0};
+    tempHumSensor.get4u8Readings(data);
+    unsigned int timestamp = to_ms_since_boot(get_absolute_time()) / 1000 - currentTimeOffset;
+
+    sensorData[sensorDataIndex].hmty[0] = data[0];
+    sensorData[sensorDataIndex].hmty[1] = data[1];
+    sensorData[sensorDataIndex].temp[0] = data[2];
+    sensorData[sensorDataIndex].temp[1] = data[3];
+    sensorData[sensorDataIndex].time[0] = timestamp;
+    sensorData[sensorDataIndex].time[1] = timestamp >> 8;
+    sensorData[sensorDataIndex].time[2] = timestamp >> 16;
+
     sensorDataIndex = (sensorDataIndex + 1) % MAX_RECORDS;
 
-    if(dataRequest)
-    {
-      for(int i = 0; i < sensorDataIndex; i++)
-      {
-        const char *msg = "%.1f,%.1f,%.1f\n\r";
-        int len = snprintf(NULL, 0, msg, sensorData[i].temperature, sensorData[i].humidity, sensorData[i].time);
-        char *result = (char *)malloc(len + 1);
-        snprintf(result, len + 1, msg, sensorData[i].temperature, sensorData[i].humidity, sensorData[i].time);
-        bluetoothUart.print(result);
-        free(result);
-      }
-      currentTimeOffset = ((float)to_ms_since_boot(get_absolute_time()) / 1000);
-      sensorDataIndex = 0;
-      dataRequest = false;
-    }
+    mutex_exit(&readIndexMutex);
 
     sleep_ms(10);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);

@@ -1,7 +1,7 @@
 extern crate serialport;
 
 use std::env;
-use pico_th_collector::{get_readings, save_data};
+use pico_th_collector::{get_readings, save_data_as_csv};
 
 fn main() {
     let mut port : Option<String> = None;
@@ -36,12 +36,12 @@ on linux,corresponding to the linked bluetooth module");
     let readings = match get_readings(&port) {
         Ok(k) => k,
         Err(e) => {
-            println!("    {}", e);
+            println!("{}", e);
             return
         }
     };
 
-    save_data(readings, &save_file);
+    save_data_as_csv(readings, &save_file);
 }
 
 fn failed_msg() {

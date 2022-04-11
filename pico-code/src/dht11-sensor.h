@@ -11,30 +11,26 @@
 
 // datasheet: https://www.mouser.com/datasheet/2/758/DHT11-Technical-Data-Sheet-Translated-Version-1143054.pdf
 
-typedef unsigned int uint;
-
 class Dht11Sensor {
 public:
   Dht11Sensor(uint gpNum);
-  float getHumidity();
-  float getTemperature();
+  void get4u8Readings(unsigned char* buff);
   void update();
 
 private:
   bool dht11Ready = false;
 
-  float humidity = -1;
-  float temperature = -1;
+  unsigned char readings[4] = {0, 0, 0, 0};
   float gpNum = 0;
 
-  uint bits[40];
+  unsigned char bits[40];
 
   bool checkReady();
   void sendWakeSignal();
   bool wakeResponse();
   bool wake();
-  uint getBit(int index);
-  uint getByte(int index);
+  unsigned char getBit(int index);
+  unsigned char getByte(int index);
 
 
   int waitChangeUs(bool currentState, int limit);
