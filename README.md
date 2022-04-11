@@ -3,12 +3,13 @@
 using the [raspberry pi pico](https://www.raspberrypi.com/products/raspberry-pi-pico/) microcontroller board, [DHT11 sensor](https://components101.com/sensors/dht11-temperature-sensor), and [HC-05 bluetooth module](https://components101.com/wireless/hc-05-bluetooth-module).
 
 Current State:
-* reads temp and humidity readings with gpio from DHT11
-* writes current temp and humidity with uart over bluetooth if sent "get"
-
-Goal:
-* upload to computer through a binary and save to file instead of using putty/minicom
+* reads temp/humidity from DHT11 with gpio every 30 seconds
+* saves readings + time in a large buffer
+* when sent a request from the command line tool over bluetooth serial, sends the data to the PC and clears the buffer
+* PC tool saves the recieved data as a csv file on the user's machine as TEMPERATURE,HUMIDITY,TIME
 
 ## dependancies
 
-I'm using the [pico SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html) which gives abstraction of the hardware and cmake build helper functions. The path needs to be set in CMakeLists.txt.
+* the [pico SDK](https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html) which gives abstraction of the hardware and cmake build helper functions. The path needs to be set in CMakeLists.txt.
+* The [C/C++ embedded toolchain](https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm) for arm-cortex-m processors
+* [Rustc and cargo](https://www.rust-lang.org/tools/install) for the command line tool
