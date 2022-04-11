@@ -1,7 +1,7 @@
 extern crate serialport;
 
 use std::time::Duration;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::path::Path;
 use std::io::{Write, ErrorKind};
 use std::thread::sleep;
@@ -120,9 +120,11 @@ pub fn get_readings(port_label: &str) -> Result<Vec<u8>, String> {
     Ok(raw_data)
 }
 
-fn to_csv_text(data: Vec<u8>) -> String {
+fn to_csv_text(data: Vec<u8>, heading: bool) -> String {
     let mut csv_text = String::with_capacity(data.len() * BYTES_IN_READING * 3);
-    csv_text.push_str("Humidity,Temperature,Time,\n");
+    if heading {
+        csv_text.push_str("Humidity,Temperature,Time,\n");
+    }
     for i in 0..data.len()/BYTES_IN_READING {
         csv_text.push_str((
             (data[(i*BYTES_IN_READING) + 0] as f32) + (data[(i*BYTES_IN_READING) + 1] as f32)/10.0)
@@ -147,12 +149,18 @@ fn to_csv_text(data: Vec<u8>) -> String {
 }
 
 pub fn save_data_as_csv(data : Vec<u8>, file_path : &str) {
-    let csv_text = to_csv_text(data);
 
     println!("    saving data to file..");
     let path = Path::new(file_path);
     let display = path.display();
-    let mut file = match File::create(&path) {
+
+    let csv_text = to_csv_text(data, !path.exists());
+
+    let mut file = match OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(true)
+                .open(path) {
         Err(msg) => panic!("    couldn't open {}: {}", display, msg),
         Ok(file) => file,
     };
