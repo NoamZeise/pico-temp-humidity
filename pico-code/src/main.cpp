@@ -13,9 +13,9 @@
 
 struct SensorData
 {
-  unsigned char hmty[2];
-  unsigned char temp[2];
-  unsigned char time[3];
+  unsigned char hmty[2] = {0, 0};
+  unsigned char temp[2] = {0, 0};
+  unsigned char time[3] = {0, 0, 0};
 };
 
 const int MAX_RECORDS = 10000;
@@ -27,7 +27,7 @@ static float currentTimeOffset = 0;
 static const int READ_DATA_MAX = 100;
 static char readData[READ_DATA_MAX];
 
-static mutex_t readIndexMutex;
+static critical_section changingIndexCritSec;
 
 void on_uart_rx() {
   const char getMsg[3] = {'g', 'e', 't'};
@@ -41,20 +41,28 @@ void on_uart_rx() {
         if(ch == '\r')
         {
           readData[readIndex] = '\0';
+          uart_puts(uart0, "got end\n\rread:\n\r"); //empty
+          uart_puts(uart0, readData); //empty
           if(readData[0] == getMsg[0] && readData[1] == getMsg[1] && readData[2] == getMsg[2])
           {
+            uart_puts(uart0, "getting data \n\r"); //empty
 
-            mutex_enter_blocking(&readIndexMutex);
+            critical_section_enter_blocking(&changingIndexCritSec);
 
-            if(sensorDataIndex == 0)
+            int whenCalledSensorDataIndex = sensorDataIndex;
+
+            critical_section_exit(&changingIndexCritSec);
+
+            if(whenCalledSensorDataIndex == 0)
             {
-              uart_putc_raw(uart1, 'e'); //empty
+              uart_puts(uart0, "empty\n\r"); //empty
+              uart_putc_raw(uart1, (unsigned char)2); //empty
             }
             else
             {
-              uart_putc_raw(uart1, 'a'); //sending data
+              uart_putc_raw(uart1, (unsigned char)1); //sending data
 
-              for(int i = 0; i < sensorDataIndex; i++)
+              for(int i = 0; i < whenCalledSensorDataIndex; i++)
               {
                 uart_putc_raw(uart1, sensorData[i].hmty[0]);
                 uart_putc_raw(uart1, sensorData[i].hmty[1]);
@@ -65,15 +73,21 @@ void on_uart_rx() {
                 uart_putc_raw(uart1, sensorData[i].time[2]);
               }
 
-              sensorDataIndex = 0;
-              currentTimeOffset = to_ms_since_boot(get_absolute_time()) / 1000;
-            }
+              critical_section_enter_blocking(&changingIndexCritSec);
 
-            mutex_exit(&readIndexMutex);
+              sensorDataIndex = 0;
+
+              currentTimeOffset = (float)to_ms_since_boot(get_absolute_time()) / 1000.0f;
+
+              critical_section_exit(&changingIndexCritSec);
+
+              uart_puts(uart0, "get data end\n\r"); //empty
+            }
           }
           else
           {
-            uart_putc_raw(uart1, 'd'); //not sending data
+            uart_puts(uart0, "unknown command\n\r");
+            uart_putc_raw(uart1, (unsigned char)3); //not sending data
           }
           readIndex = 0;
         }
@@ -82,13 +96,14 @@ void on_uart_rx() {
 
 int main() {
 
-  mutex_init(&readIndexMutex);
+  critical_section_init(&changingIndexCritSec);
 
   UartHandle passthroughUart(0, 1, uart0, 115200);
   UartHandle bluetoothUart(4, 5, uart1, 9600);
 
-//  uart_set_hw_flow(uart1, false, false);
-//  uart_set_fifo_enabled(uart1, false);
+  uart_set_hw_flow(uart1, false, false);
+  uart_set_format(uart1, 8, 1, UART_PARITY_NONE);
+
   irq_set_exclusive_handler(UART1_IRQ, on_uart_rx);
   irq_set_enabled(UART1_IRQ, true);
 
@@ -109,11 +124,11 @@ int main() {
 
     tempHumSensor.update();
 
-    mutex_enter_blocking(&readIndexMutex);
-
     unsigned char data[4] = {0, 0, 0, 0};
     tempHumSensor.get4u8Readings(data);
-    unsigned int timestamp = to_ms_since_boot(get_absolute_time()) / 1000 - currentTimeOffset;
+    critical_section_enter_blocking(&changingIndexCritSec);
+    unsigned int timestamp = ((float)to_ms_since_boot(get_absolute_time()) / 1000.0f) - currentTimeOffset;
+    critical_section_exit(&changingIndexCritSec);
 
     sensorData[sensorDataIndex].hmty[0] = data[0];
     sensorData[sensorDataIndex].hmty[1] = data[1];
@@ -123,9 +138,11 @@ int main() {
     sensorData[sensorDataIndex].time[1] = timestamp >> 8;
     sensorData[sensorDataIndex].time[2] = timestamp >> 16;
 
+    critical_section_enter_blocking(&changingIndexCritSec);
+
     sensorDataIndex = (sensorDataIndex + 1) % MAX_RECORDS;
 
-    mutex_exit(&readIndexMutex);
+    critical_section_exit(&changingIndexCritSec);
 
     sleep_ms(10);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);

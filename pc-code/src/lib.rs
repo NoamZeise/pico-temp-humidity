@@ -3,42 +3,61 @@ extern crate serialport;
 use std::time::Duration;
 use std::fs::File;
 use std::path::Path;
-use std::io::Write;
+use std::io::{Write, ErrorKind};
+use std::thread::sleep;
 
 const BYTES_IN_READING : usize = 7;
 
 fn open_port_with_device(port: &str, timeout: u64) -> Result<Box<dyn serialport::SerialPort>, String> {
-    match serialport::new(port, 9600)
+    let port = match serialport::new(port, 9600)
         .timeout(Duration::from_millis(timeout))
+        .data_bits(serialport::DataBits::Eight)
+        .parity(serialport::Parity::None)
+        .stop_bits(serialport::StopBits::One)
         .open() {
-            Ok(p) => Ok(p),
-            Err(err) => Err(
+            Ok(p) => p,
+            Err(err) => return Err(
                 String::from(
 "    Failed to open port
     ensure port is COM[x] on windows or /dev/tty[x] on linux, corresponding to the linked bluetooth module
-    port IO Error: " ) + &err.to_string())
-        }
+    port IO Error: " ) + &err.to_string()),
+    };
+
+    //allow buffer to fill with any data from device, then clear before requesting
+    sleep(Duration::from_millis(1000));
+    port.clear(serialport::ClearBuffer::All).expect("failed to clear buffers");
+
+    Ok(port)
 }
 
 fn request_data_from_device(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), String>{
+    let mut got_response = false;
     for _ in 0..2 {
         port.write(b"get\n\r").expect("Write failed!");
 
         let mut check_char : [u8; 1] = [0];
         port.read(check_char.as_mut_slice()).expect("    failed to read from port");
-        match check_char[0] as char {
-            'd' => println!("    negative response from device, retrying..."),
-            'a' => { println!("    positive response from device!"); break; },
-            'e' => return Err(String::from("    Device Has nothing in buffer to send!")),
+        match check_char[0] {
+            1 => {
+                got_response = true;
+                println!("    positive response from device!");
+                break;
+            },
+            2 => return Err(String::from("    Device Has nothing in buffer to send!")),
+            3 => println!("    negative response from device, retrying..."),
             _   => return Err(String::from("    Unexpected response from device: ") + &(check_char[0] as char).to_string()),
         };
     }
-    Ok(())
+    match got_response {
+        false => Err(String::from("    No positive response from device")),
+        true  => Ok(()),
+    }
 }
 
 pub fn get_readings(port_label: &str) -> Result<Vec<u8>, String> {
-    const MAX_TIMEOUT : u64 = 5000;
-    const MAX_SENSOR_READINGS : usize = 10000;
+    const MAX_TIMEOUT : u64 = 10000;
+    const SENSOR_READING_CHUNK : usize = 1000;
+    const MAX_SENSOR_BUFFER : usize = 10000;
 
     println!("    attempting to connect to port [{}]...", port_label);
 
@@ -60,22 +79,44 @@ pub fn get_readings(port_label: &str) -> Result<Vec<u8>, String> {
 //Hmty and Temp are 2 byte unsinged int, theres 1 byte representing left of decimal, 1 byte right of decimal
 //Time is 3 byte unsinged int -> second byte is >> 8, third is  >> 16
 
-    let mut raw_data : Vec<u8> = vec![0; MAX_SENSOR_READINGS * BYTES_IN_READING];
-    let bytes_read = match port.read(raw_data.as_mut_slice()) {
-        Ok(size) => size,
-        Err(err) => return Err(err.to_string())
-        };
+    let mut raw_data : Vec<u8> = vec![0; MAX_SENSOR_BUFFER * BYTES_IN_READING];
+    let mut total_bytes_read = 0;
+    for chunk in raw_data.chunks_mut(SENSOR_READING_CHUNK * BYTES_IN_READING) {
+            let bytes_read = match port.read(chunk) {
+                Ok(size) => size,
+                Err(err) => {
+                    if err.kind() != ErrorKind::TimedOut {
+                        return Err(err.to_string());
+                    }
+                    println!("    Got IO timed out error, this could indicate an issue, or the device could have ran out of data to send on a chunk boundary");
+                    0
+                },
+            };
+
+            total_bytes_read += bytes_read;
+
+            println!("    read {} bytes from device", bytes_read);
+
+            if bytes_read != SENSOR_READING_CHUNK * BYTES_IN_READING {
+                break;
+            }
+    }
 
     println!("    successfully read data from device!");
 
-    let extra_data = raw_data.len() - bytes_read;
+    let extra_data = raw_data.len() - total_bytes_read;
     for _ in 0..extra_data {
         if raw_data.pop().expect("nothing to pop from raw data!") != 0 {
             panic!("popped non-zero value from raw data buffer!");
         }
     }
-    assert!(raw_data.len() % BYTES_IN_READING == 0, "Length of raw data isn't a multiple of bytes in reading!");
-
+    if raw_data.len() % BYTES_IN_READING != 0 {
+        println!("    warning: Length of raw data isn't a multiple of bytes in reading! appending junk zeros to correct");
+        while raw_data.len() % BYTES_IN_READING != 0 {
+            println!("    zero appended");
+            raw_data.push(0);
+        }
+    }
     Ok(raw_data)
 }
 

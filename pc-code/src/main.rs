@@ -18,8 +18,8 @@ fn main() {
         None => {
             println!(
 "No port argument supplied
-ensure port is COM[x] on windows or /dev/tty[x]
-on linux,corresponding to the linked bluetooth module");
+ensure port is COM[x] on windows or /dev/rfcomm[x]
+on linux,corresponding to the paired bluetooth module (HC-05)");
             failed_msg();
             return
         }
@@ -36,7 +36,7 @@ on linux,corresponding to the linked bluetooth module");
     let readings = match get_readings(&port) {
         Ok(k) => k,
         Err(e) => {
-            println!("{}", e);
+            println!("Error:{}", e);
             return
         }
     };
