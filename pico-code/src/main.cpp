@@ -13,6 +13,7 @@ struct SensorData
 {
     float temperature = -1;
     float humidity = -1;
+    float time = -1;
 };
 
 
@@ -36,11 +37,12 @@ void on_uart_rx() {
           readData[readIndex] = '\0';
           if(readData[0] == getMsg[0] && readData[1] == getMsg[1] && readData[2] == getMsg[2])
           {
+            uart_putc_raw(uart1, 'a'); //sending data
             dataRequest = true;
           }
           else
           {
-            uart_puts(uart1, "unknown command!\n\r  get -> returns all stored readings\n\r\n\r");
+            uart_putc_raw(uart1, 'd'); //not sending data
           }
           readIndex = 0;
         }
@@ -52,8 +54,8 @@ int main() {
   UartHandle passthroughUart(0, 1, uart0, 115200);
   UartHandle bluetoothUart(4, 5, uart1, 9600);
 
-  uart_set_hw_flow(uart1, false, false);
-  uart_set_fifo_enabled(uart1, false);
+//  uart_set_hw_flow(uart1, false, false);
+//  uart_set_fifo_enabled(uart1, false);
   irq_set_exclusive_handler(UART1_IRQ, on_uart_rx);
   irq_set_enabled(UART1_IRQ, true);
 
@@ -65,13 +67,14 @@ int main() {
   gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
 
-  const int MAX_RECORDS = 1000;
+  const int MAX_RECORDS = 10000;
   SensorData sensorData[MAX_RECORDS];
   int sensorDataIndex = 0;
 
+  float currentTimeOffset = 0;
 
   while (true) {
-    sleep_ms(5000);
+    sleep_ms(30000); //1 day = 2880 readings
 
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
@@ -79,19 +82,21 @@ int main() {
 
     sensorData[sensorDataIndex].temperature = tempHumSensor.getTemperature();
     sensorData[sensorDataIndex].humidity = tempHumSensor.getHumidity();
+    sensorData[sensorDataIndex].time = ((float)to_ms_since_boot(get_absolute_time()) / 1000) - currentTimeOffset;
     sensorDataIndex = (sensorDataIndex + 1) % MAX_RECORDS;
 
     if(dataRequest)
     {
       for(int i = 0; i < sensorDataIndex; i++)
       {
-        const char *msg = "Temp: %.1f Celsius    Hmty: %.1f Percent\n\r";
-        int len = snprintf(NULL, 0, msg, sensorData[i].temperature, sensorData[i].humidity);
+        const char *msg = "%.1f,%.1f,%.1f\n\r";
+        int len = snprintf(NULL, 0, msg, sensorData[i].temperature, sensorData[i].humidity, sensorData[i].time);
         char *result = (char *)malloc(len + 1);
-        snprintf(result, len + 1, msg, sensorData[i].temperature, sensorData[i].humidity);
+        snprintf(result, len + 1, msg, sensorData[i].temperature, sensorData[i].humidity, sensorData[i].time);
         bluetoothUart.print(result);
         free(result);
       }
+      currentTimeOffset = ((float)to_ms_since_boot(get_absolute_time()) / 1000);
       sensorDataIndex = 0;
       dataRequest = false;
     }
