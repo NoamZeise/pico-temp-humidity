@@ -21,5 +21,4 @@ add_executable(${PROJECT_NAME} ${PROJ_SRC})
 
 pico_add_extra_outputs(${PROJECT_NAME})
 
-target_link_libraries(${PROJECT_NAME} pico_stdlib
-                                      hardware_uart)
+target_link_libraries(${PROJECT_NAME} pico_stdlib hardware_uart)

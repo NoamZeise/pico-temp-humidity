@@ -13,18 +13,35 @@ fn main() {
             _ => ()
         }
     }
-    let port = port.unwrap_or_else(||
-        {
+    let port = match port {
+        Some(p) => p,
+        None => {
+            println!(
+"No port argument supplied
+ensure port is COM[x] on windows or /dev/tty[x]
+on linux,corresponding to the linked bluetooth module");
             failed_msg();
-            panic!("No port argument supplied")
-        });
-    let save_file = save_file.unwrap_or_else(||
-        {
+            return
+        }
+    };
+    let save_file = match save_file {
+        Some(p) => p,
+        None => {
+            println!("No save file argument supplied!\n");
             failed_msg();
-            panic!("No save file argument supplied")
-        });
+            return
+        }
+    };
 
-    save_data(get_readings(&port), &save_file);
+    let readings = match get_readings(&port) {
+        Ok(k) => k,
+        Err(e) => {
+            println!("    {}", e);
+            return
+        }
+    };
+
+    save_data(readings, &save_file);
 }
 
 fn failed_msg() {
