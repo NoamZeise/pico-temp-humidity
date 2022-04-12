@@ -1,4 +1,4 @@
-pico-code/build/*
-pico-code/.cache/*
-pc-code/target/*
-pc-code/Cargo.lock
+microcontroller_software/build/*
+microcontroller_software/.cache/*
+command_line_tool/target/*
+command_line_tool/Cargo.lock
