@@ -5,7 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 include(pico_sdk_import.cmake)
 
-set(PROJECT_NAME temp-humidity)
+set(PROJECT_NAME pico-th-collector)
 project(${PROJECT_NAME} C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)

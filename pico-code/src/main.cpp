@@ -71,6 +71,12 @@ void on_uart_rx() {
                 uart_putc_raw(uart1, sensorData[i].time[0]);
                 uart_putc_raw(uart1, sensorData[i].time[1]);
                 uart_putc_raw(uart1, sensorData[i].time[2]);
+
+                //sync character
+                if(i == whenCalledSensorDataIndex - 1)
+                  uart_putc_raw(uart1, (unsigned char)254); //last
+                else
+                  uart_putc_raw(uart1, (unsigned char)255); //continue
               }
 
               critical_section_enter_blocking(&changingIndexCritSec);
@@ -118,7 +124,7 @@ int main() {
   currentTimeOffset = 0;
 
   while (true) {
-    sleep_ms(30000); //1 day = 2880 readings
+    sleep_ms(30000);
 
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
@@ -144,7 +150,6 @@ int main() {
 
     critical_section_exit(&changingIndexCritSec);
 
-    sleep_ms(10);
     gpio_put(PICO_DEFAULT_LED_PIN, 0);
   }
 }
