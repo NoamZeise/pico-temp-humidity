@@ -1,49 +1,37 @@
-extern crate serialport;
-
 use std::env;
-use pico_th_collector::{get_readings, save_data_as_csv};
+
+use pico_th_collector;
 
 fn main() {
-    let mut port : Option<String> = None;
-    let mut save_file : Option<String> = None;
-    for (i, arg) in env::args().enumerate() {
+    let mut command : Option<String> = None;
+    let mut command_args: Vec<String> = Vec::with_capacity(2);
+
+    for (i, arg) in env::args().skip(1).enumerate() {
         match i {
-            1 => port = Some(arg),
-            2 => save_file = Some(arg),
-            _ => ()
+            0 => command = Some(arg),
+            _ => command_args.push(arg),
         }
     }
-    let port = match port {
-        Some(p) => p,
-        None => {
-            println!(
-"No port argument supplied
-ensure port is COM[x] on windows or /dev/rfcomm[x]
-on linux,corresponding to the paired bluetooth module (HC-05)");
-            failed_msg();
-            return
-        }
-    };
-    let save_file = match save_file {
-        Some(p) => p,
-        None => {
-            println!("No save file argument supplied!\n");
-            failed_msg();
-            return
-        }
-    };
 
-    let readings = match get_readings(&port) {
-        Ok(k) => k,
-        Err(e) => {
-            println!("Error:{}", e);
-            return
+    if command == None {
+        println!("    No command specified!\n        help -> list avaliable commands")
+    } else {
+        let command_func : &dyn Fn(Vec<String>) -> Result<(), String>
+            = match command.unwrap()
+                           .to_lowercase()
+                           .as_str() {
+            "get" => &pico_th_collector::get_command,
+            "help" | "--help" => &pico_th_collector::help_command,
+            _ => {
+                println!("    Unknown command!\n        help -> list avaliable commands");
+                return;
+            },
+        };
+
+        match command_func(command_args) {
+            Err(e) => println!("    Error executing command:\n    {}", e),
+            _ => (),
         }
-    };
+    }
 
-    save_data_as_csv(readings, &save_file);
-}
-
-fn failed_msg() {
-    println!("expected args:\n  [port] [save file]");
 }
