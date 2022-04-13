@@ -1,13 +1,9 @@
 #ifndef DHT11_SENSOR_H
 #define DHT11_SENSOR_H
 
-#include "hardware/uart.h"
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "hardware/gpio.h"
+#include "hardware/uart.h"
 #include "pico/time.h"
-
 
 // datasheet: https://www.mouser.com/datasheet/2/758/DHT11-Technical-Data-Sheet-Translated-Version-1143054.pdf
 

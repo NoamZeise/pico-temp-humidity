@@ -9,7 +9,19 @@ UartHandle::UartHandle(uint TXGP, uint RXGP, uart_inst_t* uartNum, uint baudRate
   gpio_set_function(RXGP, GPIO_FUNC_UART);
 
 }
+void UartHandle::setRxHandler(irq_handler_t handler)
+{
+  uart_set_hw_flow(this->uartNum, false, false);
+  uart_set_format(this->uartNum, 8, 1, UART_PARITY_NONE);
 
+  int uartIrq = uart_get_index(this->uartNum) == 0 ? UART0_IRQ : UART1_IRQ;
+
+  irq_set_exclusive_handler(uartIrq, handler);
+  irq_set_enabled(uartIrq, true);
+
+  hasRxHandler = true;
+  uart_set_irq_enables(this->uartNum, hasRxHandler, hasTxHandler);
+}
 
 void UartHandle::print(const char* text)
 {
