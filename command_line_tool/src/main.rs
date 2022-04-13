@@ -14,22 +14,23 @@ fn main() {
     }
 
     if command == None {
-        println!("    No command specified!\n        help -> list avaliable commands")
+        eprintln!("    No command specified!\n        help -> list avaliable commands")
     } else {
         let command_func : &dyn Fn(Vec<String>) -> Result<(), String>
             = match command.unwrap()
                            .to_lowercase()
                            .as_str() {
             "get" => &pico_th_collector::get_command,
+            "delay" => &pico_th_collector::delay_command,
             "help" | "--help" => &pico_th_collector::help_command,
             _ => {
-                println!("    Unknown command!\n        help -> list avaliable commands");
+                eprintln!("    Unknown command!\n        help -> list avaliable commands\n    [command] help -> get specific command help");
                 return;
             },
         };
 
         match command_func(command_args) {
-            Err(e) => println!("    Error executing command:\n    {}", e),
+            Err(e) => eprintln!("    Error :\n    {}", e),
             _ => (),
         }
     }

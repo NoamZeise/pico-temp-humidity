@@ -106,7 +106,7 @@ fn get_previous_time(file: &mut File, offset_with_prev_time: bool, prexisting_fi
 
 pub fn save_sensor_reading_bytes_as_csv(data : Vec<u8>, file_path : &str, time_offset : u32, offset_with_prev_time: bool) -> Result<(), String> {
 
-    println!("\n    Saving data to file..");
+    println!("\n    Saving data to file...");
     let path = Path::new(file_path);
     let prexisting_file = path.exists();
 

@@ -3,10 +3,6 @@
 #include "hardware/uart.h"
 #include "hardware/irq.h"
 
-
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "uart_handle.h"
 #include "dht11-sensor.h"
 #include "sensor_data_handler.h"
@@ -55,6 +51,6 @@ void get_sensor_reading(Dht11Sensor &tempHumSensor)
   SensorDataHandler::sensorData[SensorDataHandler::sensorDataIndex].time[2] = timestamp >> 16;
 
   critical_section_enter_blocking(&SensorDataHandler::modifyingDataHandlerGlobals);
-  SensorDataHandler::sensorDataIndex = (SensorDataHandler::sensorDataIndex + 1) % SensorDataHandler::MAX_RECORDS;
+  SensorDataHandler::sensorDataIndex = ++SensorDataHandler::sensorDataIndex < SensorDataHandler::MAX_RECORDS ? SensorDataHandler::sensorDataIndex : SensorDataHandler::MAX_RECORDS - 1;
   critical_section_exit(&SensorDataHandler::modifyingDataHandlerGlobals);
 }

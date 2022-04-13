@@ -18,13 +18,12 @@ void handleArg();
 
 void external_rx_handler()
 {
-    while (uart_is_readable(uart1)) {
-        uint8_t ch = uart_getc(uart1);
-        if(readIndex > READ_DATA_MAX)
-          readIndex = 0;
+    while (uart_is_readable(DATA_SEND_UART)) {
+        uint8_t ch = uart_getc(DATA_SEND_UART);
 
-        readData[readIndex++] = ch;
-        if(ch == '\r')
+        readData[readIndex] = ch;
+        readIndex = (readIndex + 1) % READ_DATA_MAX;
+        if(ch == '\n')
         {
           readData[readIndex] = '\0';
           handleArg();
@@ -76,6 +75,23 @@ void getCommand()
   }
 }
 
+void delayCmd()
+{
+  uart_putc_raw(DATA_SEND_UART, (unsigned char)1);
+  //get delay in seconds
+  unsigned char delay = uart_getc(DATA_SEND_UART);
+  if(delay == 0) //return delay if 0
+    uart_putc_raw(DATA_SEND_UART, (unsigned char)(currentReadingDelay / 1000));
+  else
+  {
+    critical_section_enter_blocking(&modifyingDataHandlerGlobals);
+    currentReadingDelay = delay * 1000;
+    critical_section_exit(&modifyingDataHandlerGlobals);
+    //send back delay for confirm
+    uart_putc_raw(DATA_SEND_UART, delay);
+  }
+}
+
 bool sameCharArray(const char *command, char *check, int length)
 {
   for(int i = 0; i < length; i++)
@@ -86,13 +102,14 @@ bool sameCharArray(const char *command, char *check, int length)
   return true;
 }
 
-
 void handleArg()
 {
-  const int GET_CMD_LEN = 3;
-  const char GET_CMD[GET_CMD_LEN] = { 'g', 'e', 't' };
-  if(sameCharArray(GET_CMD, readData, GET_CMD_LEN))
+  const char GET_CMD[] = { 'g', 'e', 't' };
+  const char DELAY_CMD[] = { 'd', 'e', 'l', 'a', 'y' };
+  if(sameCharArray(GET_CMD, readData, 3))
     getCommand();
+  else if(sameCharArray(DELAY_CMD, readData, 5))
+    delayCmd();
   else
     uart_putc_raw(DATA_SEND_UART, (unsigned char)3); //unknown command
 }

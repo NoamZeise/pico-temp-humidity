@@ -17,7 +17,7 @@ namespace SensorDataHandler {
     unsigned char time[3] = {0, 0, 0};
   };
 
-  const int MAX_RECORDS = 10000;
+  const int MAX_RECORDS = 30000;
   extern SensorData sensorData[MAX_RECORDS];
   extern int sensorDataIndex;
   extern float currentTimeOffset;

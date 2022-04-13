@@ -1,7 +1,7 @@
 extern crate serialport;
 
 use std::time::Duration;
-use std::io::{Write, Error, ErrorKind};
+use std::io::{Write, Error, ErrorKind, stdout};
 use std::thread::sleep;
 
 
@@ -34,17 +34,21 @@ fn open_port_with_device(port: &str) -> Result<Box<dyn serialport::SerialPort>, 
     Ok(port)
 }
 
-fn request_sensor_readings_from_device(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), String>{
+fn get_single_byte(port: &mut Box<dyn serialport::SerialPort>) -> Result<u8, String> {
+    let mut check_char : [u8; 1] = [0];
+    match port.read(check_char.as_mut_slice()) {
+        Ok(_) => Ok(check_char[0]),
+        Err(e) => return Err(String::from("Failed to read from port, Error: ") + &e.to_string()),
+    }
+}
+
+fn send_command_to_device(port: &mut Box<dyn serialport::SerialPort>, command: &str) -> Result<(), String> {
     let mut got_response = false;
     for _ in 0..2 {
-        port.write(b"get\n\r").expect("Write failed!");
+        port.write(command.as_bytes()).expect("Write failed!");
 
-        let mut check_char : [u8; 1] = [0];
-        match port.read(check_char.as_mut_slice()) {
-            Ok(_) => (),
-            Err(e) => return Err(String::from("Failed to read from port, Error: ") + &e.to_string()),
-        }
-        match check_char[0] {
+        let check_char = get_single_byte(port)?;
+        match check_char {
             1 => {
                 got_response = true;
                 println!("    Positive response from device!");
@@ -52,7 +56,7 @@ fn request_sensor_readings_from_device(port: &mut Box<dyn serialport::SerialPort
             },
             2 => return Err(String::from("    Device Has nothing in buffer to send!")),
             3 => println!("    Negative response from device, retrying..."),
-            _   => return Err(String::from("    Unexpected response from device: ") + &(check_char[0] as char).to_string()),
+            _   => return Err(String::from("    Unexpected response from device: ") + &(check_char as char).to_string()),
         };
     }
     match got_response {
@@ -114,8 +118,12 @@ fn collect_sensor_reading_bytes(port :  &mut Box<dyn serialport::SerialPort>) ->
 
         total_bytes_read += bytes_read;
 
-        if total_bytes_read % (BYTES_IN_READING * 250) == 0 {
+        if total_bytes_read % (BYTES_IN_READING * 100) == 0 {
             print!("    {} bytes read from device\r", total_bytes_read);
+            match stdout().flush() {
+                Ok(_) => (),
+                Err(e) => println!("    error flushing stdout: {} ", e.to_string()),
+            }
         }
 
         match check_end_transmission_and_sync(port) {
@@ -128,29 +136,16 @@ fn collect_sensor_reading_bytes(port :  &mut Box<dyn serialport::SerialPort>) ->
 }
 
 pub fn get_readings(port_label: &str) -> Result<Vec<u8>, String> {
-
     println!("    Attempting to connect to port [{}]...", port_label);
-
-    let mut port = match open_port_with_device(port_label) {
-        Ok(port) => port,
-        Err(e) => return Err(e),
-    };
-
+    let mut port = open_port_with_device(port_label)?;
     println!("    Connected!\n    Requesting readings...");
-
-    match request_sensor_readings_from_device(&mut port) {
-        Err(e) => return Err(e),
-        _ => ()
-    }
-
+    send_command_to_device(&mut port, "get\r\n")?;
     println!("\n    Waiting for data transmission completion ({} ms timeout)", MAX_TIMEOUT);
 
-    let mut raw_data : Vec<u8> = match collect_sensor_reading_bytes(&mut port) {
-        Ok(data) => data,
-        Err(e) => return Err(e),
-    };
+    let mut raw_data : Vec<u8> = collect_sensor_reading_bytes(&mut port)?;
 
-    println!("\n    Successfully read {} bytes of data from device!", raw_data.len());
+    println!("    {} bytes read from device", raw_data.len());
+    println!("    Data read successfully");
 
     if raw_data.len() % BYTES_IN_READING != 0 {
         println!("    Warning: Length of raw data isn't a multiple of bytes in reading! appending junk zeros to correct");
@@ -161,4 +156,21 @@ pub fn get_readings(port_label: &str) -> Result<Vec<u8>, String> {
     }
 
     Ok(raw_data)
+}
+
+pub fn pico_delay_command(port_label: &str, delay: u8) -> Result<u8, String> {
+    println!("    Attempting to connect to port [{}]...", port_label);
+    let mut port = open_port_with_device(port_label)?;
+    println!("    Connected! sending command to device...");
+    send_command_to_device(&mut port, "delay\r\n")?;
+    println!("    Sending delay request");
+    port.write(&[delay]).expect("Write failed!");
+
+    let device_delay = get_single_byte(&mut port)?;
+
+    if delay != 0 && device_delay != delay {
+        return Err(String::from("Device delay doesn't match requested delay, device has delay of ") + &device_delay.to_string() + " seconds");
+    }
+
+    Ok(device_delay)
 }
