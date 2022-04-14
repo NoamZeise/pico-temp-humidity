@@ -9,10 +9,10 @@ pub const BYTES_IN_READING : usize = 7;
 pub const PORT_FORMAT_ERROR_MESSAGE : &str = "
     Ensure port is:
         COM[x] on windows
-        /dev/ttyS[x] for usb on linux
+        /dev/tty[name] for usb on linux
         /dev/rfcomm[x] for bluetooth on linux
     corresponding to the paired bluetooth module or usb port\n";
-const MAX_TIMEOUT : u64 = 250;
+const MAX_TIMEOUT : u64 = 500;
 const MAX_SENSOR_BUFFER : usize = 10000;
 
 fn open_port_with_device(port: &str) -> Result<Box<dyn serialport::SerialPort>, String> {
@@ -90,10 +90,11 @@ fn check_end_transmission_and_sync(port: &mut Box<dyn serialport::SerialPort>) -
             match sync_char[0] {
                 255 => return Ok(false), //continue
                 254 => return Ok(true), //end transmission
-                _   => println!("\n    Incorrect sync char, reading until next sync"),
+                _   => println!("\n    Warning: incorrect sync char, reading until next sync"),
             }
         } else {
-            panic!("no sync char!");
+            println!("    Warning: no sync char read, continuing to save");
+            return Ok(true);
         }
     }
 }

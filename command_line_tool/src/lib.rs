@@ -11,7 +11,14 @@ const GET_COMMAND_ARGS : &str =
                     timestamp as offset
 
                 --useoffset [offset in seconds]
-                    use specified offset for timestamps";
+                    use specified offset for timestamps
+
+                --astime
+                    format timestamps as DD-HH-MM-SS
+                    starts at 00-00-00-00 unless an
+                    offset is supplied with '--useoffset'
+                    or --useprev";
+
 
 const DELAY_COMMAND_FORMAT : &str = "delay [port] [optional args]";
 const DELAY_COMMAND_ARGS : &str =
@@ -65,7 +72,7 @@ pub fn get_command(args: Vec<String>) -> Result<(), String> {
         }
     };
 
-    let mut use_previous_time_offset = false;
+    let mut optional_args : u8 = 0;
     let mut extra_time_offset : u32 = 0;
 
     let mut i = 2;
@@ -73,7 +80,7 @@ pub fn get_command(args: Vec<String>) -> Result<(), String> {
         match args.get(i) {
             Some(arg) => {
                 match arg.to_lowercase().as_str() {
-                    "--useprev" => use_previous_time_offset = true,
+                    "--useprev" => optional_args |= csv::SAVE_USE_PREVIOUS_TIME,
 
                     "--useoffset" => {
                         i+=1;
@@ -86,6 +93,8 @@ pub fn get_command(args: Vec<String>) -> Result<(), String> {
                         }
                     }
 
+                    "--astime" => optional_args |= csv::SAVE_USE_24_HOUR_FORMAT,
+
                     _ => return Err(String::from("unknown optional arg supplied: ") + arg + "\n    pass 'help' for optional command list"),
                 }
             },
@@ -97,7 +106,7 @@ pub fn get_command(args: Vec<String>) -> Result<(), String> {
 
     let readings = pico_interface::get_readings(&port)?;
 
-    csv::save_sensor_reading_bytes_as_csv(readings, &save_file, extra_time_offset, use_previous_time_offset)
+    csv::save_sensor_reading_bytes_as_csv(readings, &save_file, extra_time_offset, optional_args)
 }
 
 pub fn delay_command(args: Vec<String>) -> Result<(), String> {
@@ -127,7 +136,7 @@ pub fn delay_command(args: Vec<String>) -> Result<(), String> {
                         set_time = match args.get(i) {
                             Some(num) => match num.parse::<u8>() {
                                 Ok(s) => s,
-                                Err(_) => return Err(String::from("arg Supplied with --set is not a valid u8 number: \n")),
+                                Err(_) => return Err(String::from("arg Supplied with --set is not a valid u8 number (max 255): \n")),
                             },
                             None => return Err(String::from("No offset supplied with --set: \n    should be: --set [delay in seconds]\n")),
                         }
